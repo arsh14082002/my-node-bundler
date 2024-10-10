@@ -5,7 +5,6 @@ import fs from 'fs-extra';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import http from 'http';
 
 const execPromise = promisify(exec);
 
@@ -175,15 +174,9 @@ export default userRouter;`;
   await fs.writeFile(`${dir}/src/routes/userRoutes.js`, userRoutesContent);
 
   console.log(`Project ${name} created successfully!`);
-  console.log('Installing dependencies...');
-
-  // Install dependencies
-  try {
-    await execPromise(`cd ${dir} && npm install`);
-    console.log('Dependencies installed successfully!');
-  } catch (error) {
-    console.error(`Error installing dependencies: ${error.stderr}`);
-  }
+  console.log(
+    'You can now navigate to the project directory and run "npm install" to install dependencies.',
+  );
 }
 
 program.parse(process.argv);
