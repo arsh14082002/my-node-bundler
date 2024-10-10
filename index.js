@@ -1,8 +1,11 @@
+#!/usr/bin/env node
+
 import { program } from 'commander';
 import fs from 'fs-extra';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import http from 'http';
 
 const execPromise = promisify(exec);
 
@@ -19,6 +22,15 @@ async function createProject(name) {
   const dir = `./${name}`;
   await fs.ensureDir(dir);
 
+  // Create folder structure
+  await fs.ensureDir(`${dir}/public`);
+  await fs.ensureDir(`${dir}/src`);
+  await fs.ensureDir(`${dir}/src/config`);
+  await fs.ensureDir(`${dir}/src/controllers`);
+  await fs.ensureDir(`${dir}/src/models`);
+  await fs.ensureDir(`${dir}/src/routes`);
+  await fs.ensureDir(`${dir}/src/utils`);
+
   // Create package.json
   const packageJson = {
     name,
@@ -27,7 +39,7 @@ async function createProject(name) {
     type: 'module',
     scripts: {
       start: 'node server.js',
-      run: 'nodemon server.js',
+      dev: 'nodemon server.js',
     },
     dependencies: {
       express: '^4.17.1',
@@ -41,70 +53,68 @@ async function createProject(name) {
   };
   await fs.writeFile(`${dir}/package.json`, JSON.stringify(packageJson, null, 2));
 
-  // Create server.js
-  const serverJsContent = `import express from 'express';
+  // Create app.js
+  const appJsContent = `
+import express from 'express';
 import cors from 'cors';
+import userRoutes from './routes/userRoutes.js';
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+// Use routes from the routes folder
+app.use('/api/user', userRoutes);
+
+export default app;`;
+
+  await fs.writeFile(`${dir}/src/app.js`, appJsContent);
+
+  // Create server.js
+  const serverJsContent = `
 import dotenv from 'dotenv';
 import { connectDB } from './src/config/db.js';
-import routes from './src/routes/index.js';
+import http from 'http';
+import app from './src/app.js'; // Correctly import app
 
 dotenv.config();
 
 // Connect to MongoDB
 connectDB();
 
-const app = express();
 const PORT = process.env.PORT || 3000;
-
-app.use(cors());
-app.use(express.json());
-
-// Use routes from the routes folder
-app.use('/api', routes);
-
-app.get('/', (req, res) => {
-    res.send('Hello, World!');
-});
 
 // Function to find an available port
 const findAvailablePort = (port, maxPort = 65535) => {
-    return new Promise((resolve) => {
-        const server = http.createServer();
-        server.listen(port, () => {
-            server.close();
-            resolve(port);
-        });
-        server.on('error', () => {
-            if (port < maxPort) {
-                resolve(findAvailablePort(port + 1, maxPort));
-            } else {
-                resolve(null); // No available port found
-            }
-        });
+  return new Promise((resolve) => {
+    const server = http.createServer();
+    server.listen(port, () => {
+      server.close();
+      resolve(port);
     });
+    server.on('error', () => {
+      if (port < maxPort) {
+        resolve(findAvailablePort(port + 1, maxPort));
+      } else {
+        resolve(null); // No available port found
+      }
+    });
+  });
 };
 
 // Start the server
 findAvailablePort(PORT).then((availablePort) => {
-    if (availablePort) {
-        app.listen(availablePort, () => {
-            console.log(\`Server is running on port \${availablePort}\`);
-        });
-    } else {
-        console.error('No available ports found.');
-    }
+  if (availablePort) {
+    app.listen(availablePort, () => {
+      console.log(\`Server is running on port \${availablePort}\`);
+    });
+  } else {
+    console.error('No available ports found.');
+  }
 });`;
 
   await fs.writeFile(`${dir}/server.js`, serverJsContent);
-
-  // Create folder structure
-  await fs.ensureDir(`${dir}/public`);
-  await fs.ensureDir(`${dir}/src`);
-  await fs.ensureDir(`${dir}/src/config`);
-  await fs.ensureDir(`${dir}/src/controllers`);
-  await fs.ensureDir(`${dir}/src/models`);
-  await fs.ensureDir(`${dir}/src/routes`);
-  await fs.ensureDir(`${dir}/src/utils`);
 
   // Create db.js for Mongoose configuration
   const dbJsContent = `import mongoose from 'mongoose';
@@ -147,20 +157,20 @@ export default router;`;
   // Create userRoutes.js
   const userRoutesContent = `import express from 'express';
 
-const router = express.Router();
+const userRouter = express.Router();
 
 // Sample user routes
-router.get('/', (req, res) => {
+userRouter.get('/', (req, res) => {
     res.send('Get all users');
 });
 
-router.post('/', (req, res) => {
+userRouter.post('/', (req, res) => {
     res.send('Create a user');
 });
 
 // Define other user-related routes here
 
-export default router;`;
+export default userRouter;`;
 
   await fs.writeFile(`${dir}/src/routes/userRoutes.js`, userRoutesContent);
 
